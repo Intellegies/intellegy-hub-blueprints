@@ -1,0 +1,138 @@
+blueprint:
+  name: "IntellegyHub — Кнопка → освітлення"
+  description: >
+    Керування освітленням за допомогою фізичної кнопки.
+
+    Кожне натискання перемикає поточний стан освітлення:
+    увімкнене світло вимикається, вимкнене — вмикається.
+
+    Підтримуються кнопки, підключені до xDI-16 або X-PORT DI,
+    та освітлення через релейні виходи, димери або Zigbee-лампи.
+
+    Передбачено захист від повторних спрацювань та можливість
+    керування дозволом автоматики.
+
+  domain: automation
+
+  input:
+    button:
+      name: "Кнопка"
+      description: >
+        Оберіть вхід binary_sensor, до якого підключена
+        фізична кнопка.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+
+    pressed_state:
+      name: "Стан натискання"
+      description: >
+        Стан входу під час натискання кнопки.
+        Залежить від схеми підключення.
+      default: "on"
+      selector:
+        select:
+          options:
+            - label: "Увімкнено (on)"
+              value: "on"
+            - label: "Вимкнено (off)"
+              value: "off"
+
+    target_light:
+      name: "Освітлення"
+      description: >
+        Оберіть лампу, димер або релейний вихід,
+        який керує освітленням.
+      selector:
+        entity:
+          filter:
+            - domain: light
+            - domain: switch
+
+    debounce_ms:
+      name: "Захист від повторного спрацювання"
+      description: >
+        Мінімальний інтервал між перемиканнями.
+        Допомагає уникнути повторних команд через
+        брязкіт контактів кнопки.
+      default: 200
+      selector:
+        number:
+          min: 0
+          max: 2000
+          step: 50
+          unit_of_measurement: "мс"
+          mode: slider
+
+    enable_control:
+      name: "Дозвіл автоматики"
+      description: >
+        Необов'язковий перемикач input_boolean.
+        Якщо не вибрано, автоматика завжди активна.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+
+variables:
+  pressed_state: !input pressed_state
+  target_light: !input target_light
+  debounce_ms: !input debounce_ms
+  enable_control: !input enable_control
+
+triggers:
+  - trigger: state
+    entity_id: !input button
+    from: "off"
+    to: "on"
+    id: pressed_on
+
+  - trigger: state
+    entity_id: !input button
+    from: "on"
+    to: "off"
+    id: pressed_off
+
+conditions:
+  - condition: template
+    value_template: >
+      {{
+        (trigger.id == 'pressed_on' and pressed_state == 'on')
+        or
+        (trigger.id == 'pressed_off' and pressed_state == 'off')
+      }}
+
+  - condition: template
+    value_template: >
+      {{
+        enable_control == ''
+        or is_state(enable_control, 'on')
+      }}
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ target_light.startswith('light.') }}
+        sequence:
+          - action: light.toggle
+            target:
+              entity_id: !input target_light
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ target_light.startswith('switch.') }}
+        sequence:
+          - action: switch.toggle
+            target:
+              entity_id: !input target_light
+
+  - delay:
+      milliseconds: !input debounce_ms
+
+mode: single
+max_exceeded: silent
