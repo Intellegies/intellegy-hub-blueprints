@@ -1,0 +1,104 @@
+blueprint:
+  name: "IntellegyHub — Освітлення за рухом"
+  description: >
+    Автоматично вмикає освітлення при виявленні руху
+    або присутності людини.
+
+    Коли датчик перестає фіксувати рух або присутність,
+    освітлення вимикається після заданої затримки.
+
+    Якщо протягом затримки рух з'являється знову,
+    відлік скасовується, а освітлення залишається увімкненим.
+
+  domain: automation
+
+  input:
+    motion_sensor:
+      name: "Датчик руху / присутності"
+      description: >
+        Оберіть датчик руху або присутності.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+            - domain: binary_sensor
+              device_class: occupancy
+            - domain: binary_sensor
+              device_class: presence
+
+    active_state:
+      name: "Активний стан датчика"
+      description: >
+        Стан датчика, який означає виявлення
+        руху або присутності.
+      default: "on"
+      selector:
+        select:
+          options:
+            - label: "Увімкнено (on)"
+              value: "on"
+            - label: "Вимкнено (off)"
+              value: "off"
+
+    target_light:
+      name: "Освітлення"
+      description: >
+        Оберіть світильник, реле або інший пристрій
+        для керування освітленням.
+      selector:
+        entity:
+          filter:
+            - domain: light
+            - domain: switch
+
+    off_delay:
+      name: "Затримка вимкнення"
+      description: >
+        Час без руху або присутності,
+        після якого освітлення вимкнеться.
+      default:
+        minutes: 2
+      selector:
+        duration:
+
+variables:
+  active_state: !input active_state
+  target_light: !input target_light
+
+triggers:
+  - trigger: state
+    entity_id: !input motion_sensor
+    to: !input active_state
+    id: "motion_detected"
+
+  - trigger: state
+    entity_id: !input motion_sensor
+    from: !input active_state
+    id: "motion_cleared"
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: "motion_detected"
+        sequence:
+          - action: homeassistant.turn_on
+            target:
+              entity_id: !input target_light
+
+      - conditions:
+          - condition: trigger
+            id: "motion_cleared"
+        sequence:
+          - delay: !input off_delay
+
+          - condition: template
+            value_template: >
+              {{ states(trigger.entity_id) != active_state }}
+
+          - action: homeassistant.turn_off
+            target:
+              entity_id: !input target_light
+
+mode: restart
