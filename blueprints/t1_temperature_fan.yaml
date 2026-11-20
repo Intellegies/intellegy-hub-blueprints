@@ -1,0 +1,105 @@
+
+blueprint:
+  name: "IntellegyHub — Вентилятор за температурою"
+  description: >
+    Автоматично вмикає вентилятор при перевищенні
+    заданої температури та вимикає після охолодження.
+
+    Використовує два температурні пороги для запобігання
+    частим перемиканням вентилятора.
+
+    Підтримує датчики температури 1-Wire та керування
+    вентилятором через X-PORT DO або реле xDO-8.
+
+  domain: automation
+
+  input:
+    temperature_sensor:
+      name: "Датчик температури"
+      description: >
+        Оберіть датчик температури для контролю.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    target_fan:
+      name: "Вихід вентилятора"
+      description: >
+        Оберіть релейний вихід або X-PORT DO,
+        до якого підключений вентилятор.
+      selector:
+        entity:
+          filter:
+            - domain: switch
+
+    temperature_on:
+      name: "Температура ввімкнення"
+      description: >
+        Температура, вище якої вентилятор увімкнеться.
+      default: 35
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "°C"
+          mode: box
+
+    temperature_off:
+      name: "Температура вимкнення"
+      description: >
+        Температура, нижче якої вентилятор вимкнеться.
+        Значення має бути нижчим за температуру ввімкнення.
+      default: 32
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "°C"
+          mode: box
+
+variables:
+  temperature_on: !input temperature_on
+  temperature_off: !input temperature_off
+
+triggers:
+  - trigger: state
+    entity_id: !input temperature_sensor
+
+conditions:
+  - condition: template
+    value_template: >
+      {{ temperature_off | float < temperature_on | float }}
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_number(trigger.to_state.state)
+                and
+                trigger.to_state.state | float > temperature_on | float
+              }}
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input target_fan
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_number(trigger.to_state.state)
+                and
+                trigger.to_state.state | float < temperature_off | float
+              }}
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input target_fan
+
+mode: restart
