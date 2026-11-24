@@ -1,0 +1,44 @@
+blueprint:
+  name: "IntellegyHub — W-1 — Перекриття води при протіканні"
+  description: >
+    Виконує налаштовану дію закриття клапана, коли датчик
+    переходить у стан протікання.
+  domain: automation
+
+  input:
+    leak_sensor:
+      name: "Датчик протікання"
+      description: "Оберіть одну сутність датчика або цифрового входу."
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+
+    leak_state:
+      name: "Стан протікання"
+      description: "Оберіть стан, який датчик передає при виявленні води."
+      default: "on"
+      selector:
+        select:
+          options:
+            - label: "Увімкнено (on)"
+              value: "on"
+            - label: "Вимкнено (off)"
+              value: "off"
+
+    close_action:
+      name: "Дія закриття"
+      description: >
+        Виберіть дію «Закрити клапан» або команду реле,
+        яка закриває клапан у вашій схемі.
+      selector:
+        action: {}
+
+triggers:
+  - trigger: state
+    entity_id: !input leak_sensor
+    to: !input leak_state
+
+actions: !input close_action
+
+mode: single
