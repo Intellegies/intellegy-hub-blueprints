@@ -1,0 +1,69 @@
+blueprint:
+  name: "IntellegyHub — H-1 — Опалення кімнати за розкладом"
+  description: >
+    Встановлює денну й нічну цільові температури кімнати в заданий час.
+    Температуру підтримує налаштований термостат.
+  domain: automation
+
+  input:
+    thermostat:
+      name: "Зона опалення"
+      description: "Оберіть термостат кімнати."
+      selector:
+        entity:
+          filter:
+            - domain: climate
+
+    day_temperature:
+      name: "Денна температура"
+      description: "Цільова температура в одиницях термостата."
+      selector:
+        number:
+          step: any
+          mode: box
+
+    night_temperature:
+      name: "Нічна температура"
+      description: "Цільова температура в одиницях термостата."
+      selector:
+        number:
+          step: any
+          mode: box
+
+    day_time:
+      name: "Початок денного періоду"
+      selector:
+        time: {}
+
+    night_time:
+      name: "Початок нічного періоду"
+      selector:
+        time: {}
+
+variables:
+  day_temperature: !input day_temperature
+  night_temperature: !input night_temperature
+  day_time: !input day_time
+  night_time: !input night_time
+
+triggers:
+  - trigger: time
+    at: !input day_time
+    id: day
+
+  - trigger: time
+    at: !input night_time
+    id: night
+
+conditions:
+  - condition: template
+    value_template: "{{ day_time != night_time }}"
+
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: !input thermostat
+    data:
+      temperature: "{{ day_temperature if trigger.id == 'day' else night_temperature }}"
+
+mode: single

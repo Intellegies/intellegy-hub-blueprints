@@ -1,0 +1,63 @@
+blueprint:
+  name: "IntellegyHub — L-3 — Освітлення з кількох місць"
+  description: >
+    Кожна вибрана фізична кнопка перемикає ту саму групу освітлення.
+    Відпускання кнопки не змінює стан групи.
+  domain: automation
+
+  input:
+    buttons:
+      name: "Кнопки"
+      description: "Оберіть входи xDI-16 або X-PORT DI, до яких підключені кнопки."
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+
+    pressed_state:
+      name: "Стан натискання"
+      description: "Стан входу під час натискання будь-якої з вибраних кнопок."
+      default: "on"
+      selector:
+        select:
+          options:
+            - label: "Увімкнено (on)"
+              value: "on"
+            - label: "Вимкнено (off)"
+              value: "off"
+
+    target_light:
+      name: "Група освітлення"
+      description: "Оберіть сутність групи світильників або релейних виходів."
+      selector:
+        entity:
+          filter:
+            - domain: light
+            - domain: switch
+
+variables:
+  target_light: !input target_light
+
+triggers:
+  - trigger: state
+    entity_id: !input buttons
+    to: !input pressed_state
+    not_from:
+      - "unknown"
+      - "unavailable"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ target_light.startswith('light.') }}"
+    then:
+      - action: light.toggle
+        target:
+          entity_id: !input target_light
+    else:
+      - action: switch.toggle
+        target:
+          entity_id: !input target_light
+
+mode: queued

@@ -1,0 +1,89 @@
+blueprint:
+  name: "IntellegyHub — S-2 — Автоматичне затінення"
+  description: >
+    За яскравого світла переводить жалюзі в положення затінення,
+    а після зниження освітленості відкриває їх.
+  domain: automation
+
+  input:
+    illuminance_sensor:
+      name: "Датчик освітленості"
+      description: "Оберіть датчик освітленості потрібного вікна."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    cover:
+      name: "Жалюзі"
+      description: "Оберіть привід, який підтримує задане положення."
+      selector:
+        entity:
+          filter:
+            - domain: cover
+
+    shade_threshold:
+      name: "Поріг затінення"
+      selector:
+        number:
+          min: 0
+          step: any
+          unit_of_measurement: "лк"
+          mode: box
+
+    open_threshold:
+      name: "Поріг відкриття"
+      description: "Має бути нижчим за поріг затінення."
+      selector:
+        number:
+          min: 0
+          step: any
+          unit_of_measurement: "лк"
+          mode: box
+
+    shade_position:
+      name: "Положення затінення"
+      description: "Для привода 0 % означає закрито, 100 % — відкрито."
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+variables:
+  shade_threshold: !input shade_threshold
+  open_threshold: !input open_threshold
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input illuminance_sensor
+    above: !input shade_threshold
+    id: shade
+
+  - trigger: numeric_state
+    entity_id: !input illuminance_sensor
+    below: !input open_threshold
+    id: open
+
+conditions:
+  - condition: template
+    value_template: "{{ open_threshold < shade_threshold }}"
+
+actions:
+  - if:
+      - condition: trigger
+        id: shade
+    then:
+      - action: cover.set_cover_position
+        target:
+          entity_id: !input cover
+        data:
+          position: !input shade_position
+    else:
+      - action: cover.open_cover
+        target:
+          entity_id: !input cover
+
+mode: queued

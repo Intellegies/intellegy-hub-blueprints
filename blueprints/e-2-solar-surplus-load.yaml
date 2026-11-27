@@ -1,0 +1,114 @@
+blueprint:
+  name: "IntellegyHub — E-2 — Навантаження за надлишку сонячної енергії"
+  description: >
+    Вмикає навантаження за стійкого експорту в мережу та вимикає його
+    за тривалого імпорту. Підходить для навантажень, які допускають
+    автоматичний пуск і переривання роботи.
+  domain: automation
+
+  input:
+    export_power:
+      name: "Потужність експорту"
+      description: "Сенсор експорту в мережу. Додатне значення означає експорт."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    import_power:
+      name: "Потужність імпорту"
+      description: "Сенсор імпорту з мережі. Додатне значення означає імпорт."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    load:
+      name: "Навантаження"
+      selector:
+        entity:
+          filter:
+            - domain: switch
+
+    export_threshold:
+      name: "Поріг експорту для пуску"
+      description: "Задайте в одиницях сенсора експорту з урахуванням потужності навантаження."
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+
+    import_threshold:
+      name: "Допустимий імпорт"
+      description: "Задайте в одиницях сенсора імпорту."
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+
+    export_duration:
+      name: "Час підтвердження експорту"
+      selector:
+        duration: {}
+
+    import_duration:
+      name: "Час підтвердження імпорту"
+      selector:
+        duration: {}
+
+trigger_variables:
+  export_power: !input export_power
+  import_power: !input import_power
+  export_threshold: !input export_threshold
+  import_threshold: !input import_threshold
+
+variables:
+  load: !input load
+  export_power: !input export_power
+  import_power: !input import_power
+
+triggers:
+  - trigger: template
+    value_template: >
+      {% set export_reading = states(export_power) %}
+      {% set import_reading = states(import_power) %}
+      {{ is_number(export_reading) and is_number(import_reading)
+         and export_reading | float > export_threshold
+         and import_reading | float <= import_threshold }}
+    for: !input export_duration
+    id: surplus
+
+  - trigger: template
+    value_template: >
+      {% set import_reading = states(import_power) %}
+      {{ is_number(import_reading) and import_reading | float > import_threshold }}
+    for: !input import_duration
+    id: import_limit
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: surplus
+          - condition: template
+            value_template: >
+              {{ is_state(load, 'off')
+                 and is_number(states(export_power)) and is_number(states(import_power)) }}
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input load
+
+      - conditions:
+          - condition: trigger
+            id: import_limit
+          - condition: template
+            value_template: "{{ is_state(load, 'on') }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input load
+
+mode: queued

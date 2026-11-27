@@ -1,0 +1,141 @@
+blueprint:
+  name: "IntellegyHub — T-2 — PWM-вентилятор за температурою"
+  description: >
+    Керує вентилятором на X-PORT у режимі PWM. Вимикає його після
+    охолодження, запускає на мінімальному робочому рівні й лінійно
+    підвищує PWM до 100 % у міру нагрівання.
+  domain: automation
+
+  input:
+    temperature_sensor:
+      name: "Датчик температури"
+      description: "Оберіть датчик 1-Wire з показами в °C."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    pwm_output:
+      name: "Вихід PWM"
+      description: "Оберіть сутність X-PORT PWM типу light або switch."
+      selector:
+        entity:
+          filter:
+            - domain: light
+            - domain: switch
+
+    pwm_level:
+      name: "Рівень PWM"
+      description: "Оберіть регулятор рівня від 0 до 100 % того самого PWM-каналу."
+      selector:
+        entity:
+          filter:
+            - domain: number
+
+    temperature_off:
+      name: "Температура вимкнення"
+      default: 32
+      selector:
+        number:
+          step: any
+          unit_of_measurement: "°C"
+          mode: box
+
+    temperature_start:
+      name: "Температура запуску"
+      description: "Має бути вищою за температуру вимкнення."
+      default: 35
+      selector:
+        number:
+          step: any
+          unit_of_measurement: "°C"
+          mode: box
+
+    temperature_full:
+      name: "Температура повної потужності"
+      description: "Має бути вищою за температуру запуску."
+      default: 45
+      selector:
+        number:
+          step: any
+          unit_of_measurement: "°C"
+          mode: box
+
+    minimum_pwm:
+      name: "Мінімальний рівень PWM"
+      description: "Задайте рівень, на якому вентилятор надійно запускається."
+      default: 40
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: box
+
+variables:
+  temperature_sensor: !input temperature_sensor
+  pwm_output: !input pwm_output
+  temperature_off: !input temperature_off
+  temperature_start: !input temperature_start
+  temperature_full: !input temperature_full
+  minimum_pwm: !input minimum_pwm
+
+triggers:
+  - trigger: state
+    entity_id: !input temperature_sensor
+    to: null
+
+  - trigger: homeassistant
+    event: start
+
+conditions:
+  - condition: template
+    value_template: >
+      {{ temperature_off < temperature_start < temperature_full }}
+
+actions:
+  - variables:
+      temperature: "{{ states(temperature_sensor) }}"
+
+  - condition: template
+    value_template: "{{ is_number(temperature) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ temperature | float <= temperature_off }}"
+        sequence:
+          - action: "{{ 'light.turn_off' if pwm_output.startswith('light.') else 'switch.turn_off' }}"
+            target:
+              entity_id: !input pwm_output
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ temperature | float >= temperature_start or is_state(pwm_output, 'on') }}
+        sequence:
+          - variables:
+              pwm: >
+                {% set fraction = ((temperature | float) - temperature_start)
+                  / (temperature_full - temperature_start) %}
+                {% set fraction = [0, [fraction, 1] | min] | max %}
+                {{ (minimum_pwm + fraction * (100 - minimum_pwm)) | round(0) | int }}
+
+          - action: number.set_value
+            target:
+              entity_id: !input pwm_level
+            data:
+              value: "{{ pwm }}"
+
+          - if:
+              - condition: template
+                value_template: >
+                  {{ pwm_output.startswith('switch.') and is_state(pwm_output, 'off') }}
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: !input pwm_output
+
+mode: queued

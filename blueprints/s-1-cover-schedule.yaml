@@ -1,0 +1,58 @@
+blueprint:
+  name: "IntellegyHub — S-1 — Штори й жалюзі за розкладом"
+  description: >
+    Відкриває й закриває вибрані штори або жалюзі в заданий час.
+    Кінцеві положення та блокування напрямків забезпечує контролер привода.
+  domain: automation
+
+  input:
+    covers:
+      name: "Штори або жалюзі"
+      description: "Оберіть один або кілька приводів із командами відкриття й закриття."
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+
+    open_time:
+      name: "Час відкриття"
+      selector:
+        time: {}
+
+    close_time:
+      name: "Час закриття"
+      selector:
+        time: {}
+
+variables:
+  open_time: !input open_time
+  close_time: !input close_time
+
+triggers:
+  - trigger: time
+    at: !input open_time
+    id: open
+
+  - trigger: time
+    at: !input close_time
+    id: close
+
+conditions:
+  - condition: template
+    value_template: "{{ open_time != close_time }}"
+
+actions:
+  - if:
+      - condition: trigger
+        id: open
+    then:
+      - action: cover.open_cover
+        target:
+          entity_id: !input covers
+    else:
+      - action: cover.close_cover
+        target:
+          entity_id: !input covers
+
+mode: single

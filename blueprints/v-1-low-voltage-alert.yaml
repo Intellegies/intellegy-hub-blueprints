@@ -1,0 +1,49 @@
+blueprint:
+  name: "IntellegyHub — V-1 — Сповіщення про низьку напругу"
+  description: >
+    Надсилає сповіщення, коли вимірювана напруга переходить через
+    заданий поріг униз.
+  domain: automation
+
+  input:
+    voltage_sensor:
+      name: "Датчик напруги"
+      description: "Оберіть сенсор напруги у вольтах."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    low_voltage_threshold:
+      name: "Поріг напруги"
+      selector:
+        number:
+          step: any
+          unit_of_measurement: "В"
+          mode: box
+
+    notification_action:
+      name: "Дія сповіщення"
+      description: "Виберіть, куди надіслати сповіщення, і задайте його текст."
+      selector:
+        action: {}
+
+variables:
+  low_voltage_threshold: !input low_voltage_threshold
+
+triggers:
+  - trigger: state
+    entity_id: !input voltage_sensor
+    to: null
+
+conditions:
+  - condition: template
+    value_template: >
+      {% set previous = trigger.from_state.state if trigger.from_state else none %}
+      {% set current = trigger.to_state.state if trigger.to_state else none %}
+      {{ is_number(previous) and is_number(current)
+         and (current | float) < low_voltage_threshold <= (previous | float) }}
+
+actions: !input notification_action
+
+mode: queued

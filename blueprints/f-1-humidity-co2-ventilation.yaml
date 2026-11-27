@@ -1,0 +1,86 @@
+blueprint:
+  name: "IntellegyHub — F-1 — Вентиляція за вологістю або CO₂"
+  description: >
+    Вмикає витяжку за верхнім порогом вологості або CO₂. Вимикає її,
+    коли показник залишається нижче нижнього порога протягом заданого часу.
+  domain: automation
+
+  input:
+    air_sensor:
+      name: "Датчик вологості або CO₂"
+      description: "Оберіть один показник для керування витяжкою."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    exhaust_fan:
+      name: "Витяжка"
+      selector:
+        entity:
+          filter:
+            - domain: switch
+
+    turn_on_threshold:
+      name: "Поріг ввімкнення"
+      description: "Задайте у відсотках вологості або в ppm CO₂ відповідно до сенсора."
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+
+    turn_off_threshold:
+      name: "Поріг вимкнення"
+      description: "Має бути нижчим за поріг ввімкнення й у тих самих одиницях."
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+
+    off_delay:
+      name: "Затримка вимкнення"
+      description: "Час, протягом якого показник має залишатися нижче порога вимкнення."
+      selector:
+        duration: {}
+
+trigger_variables:
+  air_sensor: !input air_sensor
+  turn_off_threshold: !input turn_off_threshold
+
+variables:
+  turn_on_threshold: !input turn_on_threshold
+  turn_off_threshold: !input turn_off_threshold
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input air_sensor
+    above: !input turn_on_threshold
+    id: ventilation_on
+
+  - trigger: template
+    value_template: >
+      {% set reading = states(air_sensor) %}
+      {{ is_number(reading) and reading | float < turn_off_threshold }}
+    for: !input off_delay
+    id: ventilation_off
+
+conditions:
+  - condition: template
+    value_template: "{{ turn_off_threshold < turn_on_threshold }}"
+
+actions:
+  - if:
+      - condition: trigger
+        id: ventilation_on
+    then:
+      - action: switch.turn_on
+        target:
+          entity_id: !input exhaust_fan
+    else:
+      - action: switch.turn_off
+        target:
+          entity_id: !input exhaust_fan
+
+mode: queued

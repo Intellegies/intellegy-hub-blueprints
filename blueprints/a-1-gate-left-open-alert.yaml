@@ -1,0 +1,41 @@
+blueprint:
+  name: "IntellegyHub — A-1 — Сповіщення про відкриті ворота"
+  description: >
+    Сповіщає, якщо ворота або хвіртка залишаються відкритими
+    довше заданого часу. Закриття скасовує відлік.
+  domain: automation
+
+  input:
+    gate_state:
+      name: "Стан воріт"
+      description: >
+        Оберіть датчик або привід, який підтверджує стан воріт.
+        Стан on для binary_sensor або open для cover має означати відкриті ворота.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+            - domain: cover
+
+    open_duration:
+      name: "Допустима тривалість відкриття"
+      selector:
+        duration: {}
+
+    notification_action:
+      name: "Дія сповіщення"
+      description: "Виберіть, куди надіслати сповіщення, і задайте його текст."
+      selector:
+        action: {}
+
+triggers:
+  - trigger: state
+    entity_id: !input gate_state
+    to:
+      - "on"
+      - "open"
+    for: !input open_duration
+
+actions: !input notification_action
+
+mode: queued

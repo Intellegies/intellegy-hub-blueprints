@@ -1,0 +1,78 @@
+blueprint:
+  name: "IntellegyHub — W-2 — Полив за розкладом"
+  description: >
+    Відкриває клапан поливу у вибрані дні й закриває після заданої
+    тривалості. Контролер поливу має власне обмеження часу відкриття.
+  domain: automation
+
+  input:
+    irrigation_valve:
+      name: "Клапан"
+      description: "Оберіть клапан або реле, яке відкриває клапан у стані on."
+      selector:
+        entity:
+          filter:
+            - domain: valve
+            - domain: switch
+
+    start_days:
+      name: "Дні поливу"
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: "Понеділок"
+              value: mon
+            - label: "Вівторок"
+              value: tue
+            - label: "Середа"
+              value: wed
+            - label: "Четвер"
+              value: thu
+            - label: "П’ятниця"
+              value: fri
+            - label: "Субота"
+              value: sat
+            - label: "Неділя"
+              value: sun
+
+    start_time:
+      name: "Час початку"
+      selector:
+        time: {}
+
+    watering_duration:
+      name: "Тривалість поливу"
+      description: "Час відкриття клапана. Задайте тривалість більше нуля."
+      selector:
+        duration: {}
+
+variables:
+  irrigation_valve: !input irrigation_valve
+  start_days: !input start_days
+  watering_duration: !input watering_duration
+  is_valve: "{{ irrigation_valve.startswith('valve.') }}"
+
+triggers:
+  - trigger: time
+    at: !input start_time
+
+conditions:
+  - condition: template
+    value_template: "{{ start_days | length > 0 and watering_duration.values() | sum > 0 }}"
+
+  - condition: time
+    weekday: !input start_days
+
+actions:
+  - action: "{{ 'valve.open_valve' if is_valve else 'switch.turn_on' }}"
+    target:
+      entity_id: !input irrigation_valve
+
+  - delay: !input watering_duration
+
+  - action: "{{ 'valve.close_valve' if is_valve else 'switch.turn_off' }}"
+    target:
+      entity_id: !input irrigation_valve
+
+mode: single

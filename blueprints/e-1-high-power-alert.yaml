@@ -1,0 +1,46 @@
+blueprint:
+  name: "IntellegyHub — E-1 — Сповіщення про високу потужність"
+  description: >
+    Один раз сповіщає про тривале перевищення порога споживаної потужності.
+    Нове сповіщення можливе після повернення до порога або нижче.
+  domain: automation
+
+  input:
+    power_sensor:
+      name: "Споживана потужність"
+      description: "Оберіть сенсор поточної споживаної потужності у Вт або кВт."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+
+    power_threshold:
+      name: "Поріг потужності"
+      description: "Задайте поріг в одиницях вибраного сенсора."
+      selector:
+        number:
+          min: 0
+          step: any
+          mode: box
+
+    time_above_threshold:
+      name: "Тривалість перевищення"
+      description: "Час, протягом якого потужність має залишатися вище порога."
+      selector:
+        duration: {}
+
+    notification_action:
+      name: "Дія сповіщення"
+      description: "Виберіть, куди надіслати сповіщення, і задайте його текст."
+      selector:
+        action: {}
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input power_sensor
+    above: !input power_threshold
+    for: !input time_above_threshold
+
+actions: !input notification_action
+
+mode: queued
